@@ -1,7 +1,7 @@
 # SIMULATION 1 -
 # Compare CRT estimators for their natural target of inference 
 #   with an effect and under the null
-#   breakingthe matches used for analysis 
+#   breaking the matches used for analysis 
 
 # Author: Laura B. Balzer
 rm(list=ls())
@@ -33,7 +33,8 @@ sim <- 1
 
 
 # individual-level adjustment variables for GEE, Aug-GEE, and CARE
-ind.cov <- c('W1','W2', 'E1','E2')
+# OCT 2022 - add in dummy variables W3 and W4
+ind.cov <- c('W1','W2','W3','W4', 'E1','E2')
 
 file.name<- paste('Sim', sim, '_effect', effect, 
                   '_J',J, '_nMean', N.mean, '_nSD', N.sd, '_nReps', nReps,"_nPop", nPop,
@@ -86,7 +87,7 @@ for(r in 1:nReps){
   GEE <- rbind(GEE, extract.me.goal(temp$YAY['gee',], psi=truth$RR.ind))
   A.GEE <- rbind(A.GEE, extract.me.goal(temp$YAY['aug.gee',], psi=truth$RR.ind))
   
-  # adjustment set fot TMLE
+  # adjustment set for TMLE
   ADJ <- rbind(ADJ, temp$ADJ)
   print(r)
   
