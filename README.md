@@ -4,13 +4,13 @@ This GitHub project contains the R code to implement the simulation studies and 
 
 The corresponding technical report is available at https://arxiv.org/abs/2110.09633.
 
-Questions and comments can be addressed to Laura at lbalzer@umass.edu.
+Questions and comments can be addressed to Laura at laura.balzer@berkeley.edu
 
 #-----#-----#-----
 
 sim1.R: code for Simulation Study I to compare common CRT estimators for their natural target of inference with an effect and under the null
 
-sim1_supp.R: code for Supplementary Approaches in Simulation Study I to compare TMLEs for estimation of the cluster- and indv-level when breaking and keeping the matches
+sim1_supp.R: code for Supplementary Approaches in Simulation Study I to compare TMLEs for estimation of the cluster- and indv-level with fewer clusters of smaller size + under the null
 
 sim2.R: code for Simulation Study 2 to compare TMLEs for estimation of the cluster- and indv-level effects with highly informative cluster size
 
