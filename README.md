@@ -6,6 +6,8 @@ The corresponding technical report is available at https://arxiv.org/abs/2110.09
 
 Questions and comments can be addressed to Laura at laura.balzer@berkeley.edu
 
+An R package to estimate effect in trials (cluster or individually randomized) is underway at https://github.com/LauraBalzer/tmle4rcts
+
 #-----#-----#-----
 
 sim1.R: code for Simulation Study I to compare common CRT estimators for their natural target of inference with an effect and under the null
