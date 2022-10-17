@@ -25,24 +25,44 @@ for(j in 1:20){
 
 O <- O[,c('id','pair','U','alpha','n', 'W2','A','Y')]
 
+goal <- 'aRR'
+#goal <- 'RD'
+
 # UNADJUSTED
 # break matches - point ests & se should match ltmle
-unadjB <- suppressWarnings( suppressMessages( do.estimation(O=O, break.match=T, return.ltmle=T) ))
+unadjB <- suppressWarnings( suppressMessages( do.estimation(goal=goal, O=O, break.match=T) ))
 # keep matches - 
-unadjP <- suppressWarnings( suppressMessages( do.estimation(O=O, break.match=F) ))
+unadjP <- suppressWarnings( suppressMessages( do.estimation(goal=goal,O=O, break.match=F) ))
+
+round( unadjB[,c('Txt.est', 'Con.est', 'est', 'CI.lo', 'CI.hi','pval')], 2)
+round( unadjP[,c('Txt.est', 'Con.est', 'est', 'CI.lo', 'CI.hi','pval')], 2)
 
 # ADAPTIVE PRE-SPECIFIC FOR {U, W2 }
-# subjset dataset on those with measured covariates (C-section status ==W2)
+# subset the dataset on those with measured covariates (C-section status ==W2)
 O2 <- O[!is.na(O$W2),]
 dim(O); dim(O2)
+# unadjB2 <- suppressWarnings( suppressMessages( do.estimation(goal=goal,O=O2, break.match=T) ))
+# unadjP2 <- suppressWarnings( suppressMessages( do.estimation(goal=goal,O=O2, break.match=F) ))
+
 # break matches
 tmleB <- suppressWarnings( suppressMessages(
-  do.estimation(O=O2, do.data.adapt=T, do.cv.variance=T, cand.adj=c('U','W2'), break.match=T) ))
+  do.estimation(goal=goal, O=O2, do.data.adapt=T, do.cv.variance=T, cand.adj=c('U','W2'), break.match=T) ))
 # keep matches - 
 tmleP <- suppressWarnings( suppressMessages(
-  do.estimation(O=O2, do.data.adapt=T, do.cv.variance=T, cand.adj=c('U','W2'), break.match=F) ))
+  do.estimation(goal=goal, O=O2, do.data.adapt=T, do.cv.variance=T, cand.adj=c('U','W2'), break.match=F) ))
+
+file.name<- paste('PTBi_goal_', goal,
+                  '_v', 
+                  format(Sys.time(), "%d%b%Y"), 
+                  '.Rdata', sep='')
+
+save(unadjB, unadjP, tmleB, tmleP, file=file.name)
+
+this.order <- c('dataC.effectC',  'dataC.effectI','dataI.effectC', 'dataI.effectI')
 
 
+round( tmleB[,c('Txt.est', 'Con.est', 'est', 'CI.lo', 'CI.hi','pval')], 2)
+round( tmleP[,c('Txt.est', 'Con.est', 'est', 'CI.lo', 'CI.hi','pval')], 2)
 
-save(unadjB, unadjP, tmleB, tmleP, file='PTBi_results.Rdata')
 
+round( (unadjB$se^2)/(tmleB$se^2), 1)
