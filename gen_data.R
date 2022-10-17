@@ -15,7 +15,12 @@
 get.full.data <- function(sim=2, J=20, N.mean=400, N.sd=200, effect, verbose=F){
   
   n.indv<- round(rnorm(J, N.mean, N.sd))
-  n.indv[n.indv < 30] <- 30
+  #Oct 22 - change to have small cluster sizes
+  if(N.mean >=30){
+    n.indv[n.indv < 30] <- 30
+  } else{
+    n.indv[n.indv < 10] <- 10
+  }
   
   full.data<- NULL
   
@@ -82,6 +87,11 @@ generate.cluster.sim1 <- function(effect=T, N, j, verbose){
   W1 <- rnorm(N, 2*UE, 0.35)
   W2 <- rnorm(N, 4*UE, 0.9)
   
+  # Oct 2022 - add in dummy variables
+  UE2 <- rep(runif(1, -.5, 0.5), N)
+  W3 <- rnorm(N, UE2, .5)
+  W4 <- rnorm(N, UE2, .5)
+  
   UY <- runif(N, 0, 1)
   
   # getY.sim1: generate outcome 
@@ -108,7 +118,8 @@ generate.cluster.sim1 <- function(effect=T, N, j, verbose){
   
   
   # return data.frame with id as the cluster indicator and dummy variable U=1 (for unadjusted)
-  data.frame( cbind(id=j, n=N, U=1, W1 = W1, W2 = W2, E1 = E1, E2 = E2, Y1, Y0) )
+  data.frame( cbind(id=j, n=N, U=1, W1 = W1, W2 = W2, W3=W3, W4=W4,
+                    E1 = E1, E2 = E2, Y1, Y0) )
 }
 
 
@@ -165,9 +176,11 @@ get.truth <- function(X.all){
   truth <- data.frame( cbind(
     int.ind=mean(X.all$Y1),
     con.ind=mean(X.all$Y0),
+    RD.ind= mean(X.all$Y1)-mean(X.all$Y0),
     RR.ind= mean(X.all$Y1)/mean(X.all$Y0),
     int.clust= mean(X.all.C$Y1),
     con.clust=mean(X.all.C$Y0),
+    RD.clust=mean(X.all.C$Y1)-mean(X.all.C$Y0),
     RR.clust=mean(X.all.C$Y1)/mean(X.all.C$Y0),
     getMeasuresVariability(X1=X.all.C$Y1, X0=X.all.C$Y0, pairs=X.all.C$pair)
   ))
