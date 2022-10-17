@@ -100,9 +100,36 @@ do.gee <- function(train, ind.cov, psi, paired=F, link){
   get.inference(goal='aRR', psi=psi, psi.hat=psi.hat, se=se, df=NA)
 }
 
+# Oct 22: update to add in Fay's adjustment for se estimation
+# GEE: Generalized estimating equations 
+library(geesmv)
+do.gee.fay <- function(train, ind.cov, psi, paired=F, link){
+  
+  N <- sum(!duplicated(train$id))
+  id <- train$id
+  pair <- train$pair
+  if(paired){
+    train$pair <- as.factor(train$pair)
+    train <- train[, c('id', 'pair', ind.cov, 'A', 'Y')]
+  }else{
+    train <- train[, c('id',ind.cov, 'A', 'Y')]
+  }
+  
+  temp <- paste(ind.cov[1:length(ind.cov)], '+ ', sep='', collapse='')
+  temp <- paste('Y', '~', temp, 'A', sep=' ', collapes='')
+  # point estimate
+  m <- glm(formula=as.formula(temp),  data=train, family=link)
+  psi.hat<- coef(m)['A']
+  # variance estimate - corrected
+  m <- GEE.var.fg(formula=as.formula(temp), id='id', data=train, family=link)
+  se <- sqrt( m$cov.beta[length(m$cov.beta)])
+  get.inference(goal='aRR', psi=psi, psi.hat=psi.hat, se=se, df=NA)
+}
+
 
 # AUGMENTED GEE
 library('CRTgeeDR')
+
 do.gee.aug <- function(train, ind.cov, psi, link){
   
   N <- sum(!duplicated(train$id))
@@ -115,7 +142,9 @@ do.gee.aug <- function(train, ind.cov, psi, link){
   out <- geeDREstimation(formula=Y~A, nameY='Y', id='id', nameTRT='A', 
                          data=train, family=link,
                          model.augmentation.ctrl = as.formula(temp),
-                         model.augmentation.trt = as.formula(temp))
+                         model.augmentation.trt = as.formula(temp),
+                         fay.adjustment=T) # Oct22: adding in small-sample nuisance adjusted variance estimate
+  
   # alternatively can directly specify
                        #  model.augmentation.ctrl = Y~ W1 + W2 + E1 + E2 ,
                         # model.augmentation.trt = Y ~ W1 + W2 + E1 + E2)
