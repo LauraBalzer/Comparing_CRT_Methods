@@ -23,16 +23,20 @@ nReps <- 500
 # Indicator if there is an effect (vs. the null)
 effect<- F
 # Indicator break the match pairs used for randomization
-break.match <- F
+break.match <- T
 
 # Number of clusters in the target population
 nPop<- 2500
 
 # Number of clusters in each study
-J <- 20
+J <- 10
 # Average number of individuals per cluster
 N.mean <- 150
 N.sd <- 80
+# OCT 2022 - update to examine impact of limited cluster sizes
+# N.mean <- 20
+# N.sd <- 10
+
 # print output
 verbose<- F
 
@@ -42,7 +46,8 @@ if(break.match){
 } else{
   cand.adj <- c('U', 'W2')
 }
-
+# OCT 2022 - add in dummy variables W3 and W4
+# cand.adj <- c('U','W1','W2','W3','W4')
 
 # SUPP FILES ONLY FOCUS ON TMLES WITH AND WITHOUT PAIR-MATCHING 
 # ANALOGOUS TO SIMULATION 2
@@ -70,7 +75,7 @@ for(r in 1:nReps){
   
   # UNADJUSTED EFFECT ESTIMATOR
   unadj <- suppressWarnings( suppressMessages( 
-                do.estimation(O=O, break.match=break.match, return.ltmle = F) ))
+                do.estimation(O=O, break.match=break.match) ))
   UNADJ <- rbind(UNADJ, extract.me(unadj, truth))
 
   # TMLES WITH ADAPTIVE PRE-SPEC
