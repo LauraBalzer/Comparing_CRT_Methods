@@ -29,14 +29,17 @@ do.estimation.sim1 <- function(O, ind.cov, break.match=T, verbose=F){
                   do.data.adapt =F,  do.cv.variance=F, cand.adj=NULL, 
                   break.match=T, verbose=verbose)
   
+  # OCT 2022 - consider expanded set
+  cand.adj <- c('U', 'W1', 'W2', 'W3', 'W4')
+  
   dataC.effectC <- Stage2(data.input=Occ, target='clust', QAdj=NULL, gAdj=NULL, 
-                          do.data.adapt =T,  do.cv.variance=F, cand.adj=c('U', 'W1', 'W2'), 
+                          do.data.adapt =T,  do.cv.variance=F, cand.adj=cand.adj, 
                           break.match=T, verbose=verbose)
   
   # using individual-level data
   O$alpha <- 1/O$n
   dataI.effectC <- Stage2(data.input=O, target='clust', QAdj=NULL, gAdj=NULL, 
-                          do.data.adapt =T,  do.cv.variance=F, cand.adj=c('U', 'W1', 'W2'), 
+                          do.data.adapt =T,  do.cv.variance=F, cand.adj=cand.adj, 
                           break.match=T, verbose=verbose)
   
   #--------------------
@@ -52,7 +55,9 @@ do.estimation.sim1 <- function(O, ind.cov, break.match=T, verbose=F){
   
   #--------------------
   # INDV-EFFECT
-  gee <- do.gee(train=O, ind.cov=ind.cov, psi=NA, paired=F, link='poisson')
+  # Oct2022 update: do Fay/Graubard small sample correction 
+  #gee <- do.gee(train=O, ind.cov=ind.cov, psi=NA, paired=F, link='poisson')
+  gee <- do.gee.fay(train=O, ind.cov=ind.cov, psi=NA, paired=F, link='poisson')
   aug.gee <- do.gee.aug(train=O, ind.cov=ind.cov, psi=NA, link='poisson')
   
   #--------------------
@@ -82,15 +87,10 @@ do.estimation.sim1 <- function(O, ind.cov, break.match=T, verbose=F){
 #   dataI.effectC: Hierarchical TMLE (with indv-level data) to estimate cluster-level effect                           
 #   dataC.effectI: cluster-level TMLE to estimate ind-level effect
 #   dataI.effectI: Hierarchical TMLE (with ind-level data) to estimate ind-level effect
-#
-# if (return.ltmle): callss ltmle for comparison to an unadjusted analysis of individual-level data                     
-#     LdataI.effectC: ltmle with ind-level data for cluster-level effect 
-#     LdataI.effectI: ltmle with ind-level data for indv-level effect 
-
 
 do.estimation <- function(goal='aRR', O, QAdj=NULL, gAdj=NULL, 
                           do.data.adapt =F, do.cv.variance=F, cand.adj=NULL, 
-                          break.match=T, verbose=F, return.ltmle=F){
+                          break.match=T, verbose=F){
 
   
   #--------------------
@@ -99,13 +99,17 @@ do.estimation <- function(goal='aRR', O, QAdj=NULL, gAdj=NULL,
   # using cluster-level data
   # aggregate with the empirical mean & then add weights for effect: cluster
   Occ <- get.Yc(O=O, target='cluster')
-  dataC.effectC <- Stage2(data.input=Occ, target='clust', QAdj=QAdj, gAdj=gAdj, do.data.adapt =do.data.adapt, 
-                          do.cv.variance=do.cv.variance, cand.adj=cand.adj, break.match=break.match, verbose=verbose)
+  dataC.effectC <- Stage2(goal=goal, data.input=Occ, target='clust', 
+                          QAdj=QAdj, gAdj=gAdj, do.data.adapt =do.data.adapt, 
+                          do.cv.variance=do.cv.variance, cand.adj=cand.adj, 
+                          break.match=break.match, verbose=verbose)
   
   # using individual-level data
   O$alpha <- 1/O$n
-  dataI.effectC <- Stage2(data.input=O, target='clust', QAdj=QAdj, gAdj=gAdj, do.data.adapt =do.data.adapt, 
-                          do.cv.variance=do.cv.variance, cand.adj=cand.adj, break.match=break.match, verbose=verbose)
+  dataI.effectC <- Stage2(goal=goal, data.input=O, target='clust', 
+                          QAdj=QAdj, gAdj=gAdj, do.data.adapt =do.data.adapt, 
+                          do.cv.variance=do.cv.variance, cand.adj=cand.adj, 
+                          break.match=break.match, verbose=verbose)
   
   
   #---------------------------
@@ -114,39 +118,21 @@ do.estimation <- function(goal='aRR', O, QAdj=NULL, gAdj=NULL,
   # using cluster-level data 
   # aggregate with the empirical mean & then add weights for effect: indv
   Oci <- get.Yc(O=O, target='indv') #weights= J/nTot*Nj
-  dataC.effectI <- Stage2(data.input=Oci, target='indv', QAdj=QAdj, gAdj=gAdj, do.data.adapt =do.data.adapt, 
-                          do.cv.variance=do.cv.variance, cand.adj=cand.adj, break.match=break.match, verbose=verbose)
+  dataC.effectI <- Stage2(goal=goal, data.input=Oci, target='indv', 
+                          QAdj=QAdj, gAdj=gAdj, do.data.adapt =do.data.adapt, 
+                          do.cv.variance=do.cv.variance, cand.adj=cand.adj, 
+                          break.match=break.match, verbose=verbose)
   
   # using individual-level data 
   O$alpha <- 1
-  dataI.effectI <- Stage2(data.input=O,  target='indv', QAdj=QAdj, gAdj=gAdj, do.data.adapt =do.data.adapt, 
-                          do.cv.variance=do.cv.variance, cand.adj=cand.adj, break.match=break.match, verbose=verbose)
+  dataI.effectI <- Stage2(goal=goal, data.input=O,  target='indv', 
+                          QAdj=QAdj, gAdj=gAdj, do.data.adapt =do.data.adapt, 
+                          do.cv.variance=do.cv.variance, cand.adj=cand.adj, 
+                          break.match=break.match, verbose=verbose)
   
-  
-  #----------------------------
-  # NOTE - if UNADJUSTED (QAdj=gAdj=NULL), then should get back same results as ltmle
-  # should also work for adjusted if program in the parametric form
-  # - break.match must be true... (not implemented for pair-matched analyses)
-  if( is.null(QAdj) & is.null(gAdj) & return.ltmle){
-    # dataI.effectC should be equivalent to 
-    tempC <- summary( ltmle(data=O[,c('A','Y')], Anodes='A', Ynodes='Y', abar=list(1,0), 
-                            id=O$id, observation.weights=1/O$n, estimate.time = F,
-                            variance.method='ic'))$effect.measures
-    ltmle.dataI.effectC <- extract.ltmle(est=tempC)
-    # dataI.effectI should be equivalent to
-    tempI <- summary( ltmle(data=O[,c('A','Y')], Anodes='A', Ynodes='Y', abar=list(1,0), 
-                            id=O$id,  estimate.time = F,
-                            variance.method='ic'))$effect.measures
-    ltmle.dataI.effectI <- extract.ltmle(est=tempI)
-  }else{
-    ltmle.dataI.effectC <- ltmle.dataI.effectI <- NULL
-  }
-  #----------------------------
   
   YAY <- data.frame(rbind(dataC.effectC=dataC.effectC, dataI.effectC=dataI.effectC, 
-                              LdataI.effectC= ltmle.dataI.effectC, 
-                          dataC.effectI=dataC.effectI, dataI.effectI=dataI.effectI, 
-                              LdataI.effectI=ltmle.dataI.effectI))
+                          dataC.effectI=dataC.effectI, dataI.effectI=dataI.effectI))
   YAY
 }
 
