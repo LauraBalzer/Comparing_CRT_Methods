@@ -39,7 +39,7 @@ Stage2 <- function(goal='aRR', target='clust', data.input, QAdj=NULL, gAdj=NULL,
   
   # Run full TMLE algorithm with prespecified adjustment set
   est <- do.TMLE(goal=goal, target=target, train=data.input, QAdj=QAdj, 
-                 gAdj=gAdj, verbose=verbose)
+                 gAdj=gAdj, doing.CV=F, verbose=verbose)
   
   # Get point estimates and inference
   R1 <- est$R1
@@ -115,9 +115,9 @@ Stage2 <- function(goal='aRR', target='clust', data.input, QAdj=NULL, gAdj=NULL,
 #-----------------------------------------------------#-----------------------------------------------------
 
 do.TMLE <- function(goal, target, train, QAdj, gAdj=NULL, Q.out=NULL, p.out=NULL,
-                    verbose=F){	
+                    doing.CV=T, verbose=F){	
   
-  J <- length(unique(train$id))
+  #J <- length(unique(train$id))
   
   #=====================================================
   # Step1 - initial estimation of E(Y|A,W)= Qbar(A,W)
@@ -146,20 +146,27 @@ do.TMLE <- function(goal, target, train, QAdj, gAdj=NULL, Q.out=NULL, p.out=NULL
   # Step4: Parameter estimation
   #==========================================================
   
-  # IF DATA ARE AT THE CLUSTER-LEVEL: the weights are 1 for cluster-effect
-  #   & n_j*J/nTot for individual-target effect 
-  # note weights are normalized to sum to J	
-  if(nrow(train)> J & target=='clust')	{
-    # IF DATA ARE AT THE INDV-LEVEL, but the goal is cluster-level effect
-    # Aggregate now 
-    train <- aggregate(train, by=list(train$id), mean)[,-1]
-    train$alpha <- 1 
+
+  if(nrow(train)> length(unique(train$id)) & target=='clust')	{
+    # IF DATA ARE AT THE INDV-LEVEL, BUT GOAL IS THE CLUSTER-LEVEL EFFECT 
+    # get point estimates by aggregating to the cluster level 
+    #   (by taking the weighted sum)
+    # then take mean of cluster-level endpoints
+    if(!doing.CV & verbose) print('data=indv; target=clust')
+    R1<- mean( aggregate(data.frame(train$alpha*train$Qbar1W.star), by=list(train$id), sum)[,2] )
+    R0<- mean( aggregate(data.frame(train$alpha*train$Qbar0W.star), by=list(train$id), sum)[,2] )
+  } else{
+    # OTHERWISE, JUST TAKE THE WEIGHTED SUM ACROSS ALL ROWS
+    R1 <- mean( train$alpha*train$Qbar1W.star )
+    R0 <- mean( train$alpha*train$Qbar0W.star ) 
   }
 
-  R1 <- mean( train$alpha*train$Qbar1W.star )
-  R0 <- mean( train$alpha*train$Qbar0W.star ) 
-  
-  variance.out <- get.IC.variance(goal=goal, Vdata=train, R1=R1, R0=R0)
+  #==========================================================
+  # Step 5: Variance estimation
+  #==========================================================
+
+  variance.out <- get.IC.variance(goal=goal, target=target, Vdata=train, R1=R1, R0=R0, 
+                                  doing.CV=doing.CV, verbose=verbose)
   
   RETURN<- list(train=train, 	
                 QAdj=Q$QAdj, Q.out=Q$glm.out,
@@ -258,9 +265,9 @@ get.epsilon <- function(train, goal, verbose=F){
   A.train<- train$A
   Y.train<- train$Y
   
-  # Skip fitting if outcome=0 or outcome=1 for all observations in either txt or control group
-  Skip.update <-  mean(Y.train[A.train==1])==0 | mean(Y.train[A.train==0])==0 |  
-    mean(Y.train[A.train==1])==1 | mean(Y.train[A.train==0])==1 
+  # Skip fitting if no meaningful variance in either txt or control group
+  Skip.update <- (var(Y.train[A.train==1]) < 1*10^{-4}) | 
+                  (var(Y.train[A.train==0]) < 1*10^{-4})
   
   if(goal=='RD'){
     
@@ -331,22 +338,43 @@ do.targeting <- function(train, eps, goal){
 #		  estimated IC & variance - preserving/breaking the match
 #     on log scale for if goal!='RD'
 #-----------------------------------------------------#-----------------------------------------------------
-get.IC.variance <- function(goal, Vdata, R1, R0){
+get.IC.variance <- function(goal, target, Vdata, R1, R0, sample.effect=F, doing.CV=F, verbose=F){
   
-  # CHANGE from SEARCH CODE to population-level effect 
-  DY1 <- Vdata$alpha*(Vdata$H.1W*(Vdata$Y - Vdata$Qbar1W.star) + Vdata$Qbar1W.star - R1)
-  DY0 <- Vdata$alpha*(Vdata$H.0W*(Vdata$Y - Vdata$Qbar0W.star) + Vdata$Qbar0W.star - R0)	
+  # number of randomized units
+  J <- length( unique(Vdata$id) )
   
-  if( length(DY1)>length(unique(Vdata$id) ) ) {
-    # CHANGE from SEARCH CODE - if individual-level data, then aggregate to the cluster-level 
-    # only should kick-in if the goal is the individual effect and the data are at the indv level
-    DY1 <- c(ltmle:::HouseholdIC(as.matrix(DY1), id = Vdata$id))
-    DY0 <- c(ltmle:::HouseholdIC(as.matrix(DY0), id = Vdata$id))
-    
-    # for the pair-matched IC also need to aggregate to the cluster-level
-    Vdata <- aggregate(Vdata, by=list(Vdata$id), mean)[,-1]
+  # calculate the relevant components of the IC 
+  if(sample.effect){
+    # calcualte the IC for teh sample effect - NOT EXAMINED IN THIS PAPER
+    DY1 <- Vdata$alpha*Vdata$H.1W*(Vdata$Y - Vdata$Qbar1W.star)
+    DY0 <- Vdata$alpha*Vdata$H.0W*(Vdata$Y - Vdata$Qbar0W.star)
+  } else{
+    # calculate the IC for population effect (extra term for DW)
+    DY1 <- Vdata$alpha*( Vdata$H.1W*(Vdata$Y - Vdata$Qbar1W.star) + Vdata$Qbar1W.star - R1 )
+    DY0 <- Vdata$alpha*( Vdata$H.0W*(Vdata$Y - Vdata$Qbar0W.star) + Vdata$Qbar0W.star - R0 )	
   }
   
+  if( length(DY1)>length(unique(Vdata$id)) ) {
+    # CHANGE from SEARCH CODE -
+    # if individual-level data, then need to aggregate the IC to the cluster-level 
+    # approach for aggregation depends on the target effect
+    if(target=='clust'){
+      # Data are indv-level; target is cluster-level 
+      if(!doing.CV & verbose) print('data=indv; target=clust')
+      DY1 <- aggregate(DY1, by=list(Vdata$id), sum)[,-1]
+      DY0 <- aggregate(DY0, by=list(Vdata$id), sum)[,-1]
+    }else{
+      # Data are indv-level; target is indv-level 
+      if(!doing.CV & verbose) print('data=indv; target=indv')
+      DY1 <- c(ltmle:::HouseholdIC(as.matrix(DY1), id = Vdata$id))
+      DY0 <- c(ltmle:::HouseholdIC(as.matrix(DY0), id = Vdata$id))
+    }
+
+    # for the pair-matched IC also need to aggregate to the cluster-level
+    # Vdata <- aggregate(Vdata, by=list(Vdata$id), mean)[,-1]
+  } 
+  
+  # INFLUENCE CURVES ARE NOW AT THE LEVEL OF THE RANDOMIZED UNIT
   if(goal=='RD'){
     # going after RD, easy IC
     DY <-  DY1 - DY0
@@ -360,25 +388,30 @@ get.IC.variance <- function(goal, Vdata, R1, R0){
     DY <- 1/R1*DY1 + 1/(1-R1)*DY1 - 1/(1-R0)*DY0 - 1/R0*DY0
   }
   
-  # print(mean(DY))
+  if(!doing.CV & verbose) print(paste0('Solve EIF: ', mean(DY) ))
   
   # estimated variance for txt specific means or if break the match	
-  J <- length( unique(Vdata$id) )
   var.R1 <- var(DY1) /J
   var.R0 <- var(DY0) / J
   var.break <- var(DY) /J
   
   
-  # estimated variance if preserve the match
-  pairs <- unique(Vdata$pair)
-  n.pairs <- length(pairs)
-  DY.paired <-  rep(NA, n.pairs)
-  for(i in 1:n.pairs){		
-    these<- Vdata$pair== pairs[i] 
-    DY.paired[i]<- 0.5*sum(DY[ these] )			
+  if( 'pair' %in% colnames(Vdata) ){
+    # estimated variance if preserve the match
+    pairC <- aggregate(Vdata, by=list(Vdata$id), mean)[,'pair']
+    pairs <- unique(pairC)
+    n.pairs <- length(pairs)
+    DY.paired <-  rep(NA, n.pairs)
+    for(i in 1:n.pairs){		
+      these<- pairC %in% pairs[i] 
+      DY.paired[i]<- 0.5*sum(DY[ these] )			
+    }
+    
+    var.pair <- var(DY.paired) / n.pairs
+  } else{
+    DY.paired <- var.pair <- NA
   }
   
-  var.pair <- var(DY.paired) / n.pairs
   
   
   list(var.R1=var.R1, var.R0=var.R0, DY=DY, var.break=var.break, 
@@ -390,7 +423,8 @@ get.IC.variance <- function(goal, Vdata, R1, R0){
 
 
 #-----------------------------------------------------#-----------------------------------------------------
-# get.inference: function to calculate (1-sig.level)% confidence intervals & test the null hypothesis
+# get.inference: function to calculate (1-sig.level)% confidence intervals 
+#   & test the null hypothesis
 #	input: 
 #		goal (aRR= arithmetic risk ratio; otherwise RD)
 #   psi (true value)
@@ -400,6 +434,7 @@ get.IC.variance <- function(goal, Vdata, R1, R0){
 #		sig.level (significance level)
 # output: 
 #		  point estimate, 95%CI, std error estimate, pval
+# 		note: if goal!=RD, variance & test stat are on log-scale
 #-----------------------------------------------------#-----------------------------------------------------	
 
 get.inference <- function(goal='RD', psi=NA, psi.hat, se, df=NA, sig.level=0.05){
