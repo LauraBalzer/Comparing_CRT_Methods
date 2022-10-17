@@ -1,7 +1,7 @@
 ##############
 # Adapt_Functions.R 
 # R code to implement adaptive prespecification
-# Adaptive from https://github.com/LauraBalzer/SEARCH_Analysis_Adults
+# Adapted from https://github.com/LauraBalzer/SEARCH_Analysis_Adults
 
 # Author: Laura B. Balzer
 
@@ -115,7 +115,7 @@ CV.selector <- function(goal, target, break.match, Ldata, clust.adj, forQ, QAdj)
 
 get.IC.CV<- function(goal, target, break.match, Ldata, QAdj, gAdj){
   
-  # This is implemented for leave-one-out 
+  # WARNING -- This is implemented for leave-one-out 
   if( !break.match ){
     indpt.unit <- Ldata$pair
   }else{
@@ -149,6 +149,8 @@ get.IC.CV<- function(goal, target, break.match, Ldata, QAdj, gAdj){
   }
   
   # estimating the CV risk for each candidate
+  # risk = Expectation of loss with loss as IC-sq
+  # risk = variance of TMLE
   CV.risk <- mean( DY.CV^2 )
   # estimating the CV variance for that TMLE
   var.CV <- var(DY.CV)/length(DY.CV)
@@ -173,7 +175,7 @@ get.IC.CV<- function(goal, target, break.match, Ldata, QAdj, gAdj){
 
 do.TMLE.validset <- function(goal, target, valid, train.out) {		
 	
-	J <- length(unique(valid$id) )
+	# J <- length(unique(valid$id) )
 
 	#=============================================
 	# Step1 - initial estimation of E(Y|A,W)= Qbar(A,W)
@@ -193,24 +195,11 @@ do.TMLE.validset <- function(goal, target, valid, train.out) {
 	
 	valid <- do.targeting(train=valid, eps=train.out$eps, goal=goal)
 	
-	#=============================================
-	# Already have a pt estimate; get CV variance			
-	#=============================================
-  # CHANGE
-	# if data are at the cluster-level, weight=1 for cluster-effect
-	#   weight= J/nTot*n_j for indv-effct
-	# if data are at the indv-level & goal is cluster-effect, 
-	#   aggregate now
-  if(nrow(valid)> J & target=='clust')	{
-	  valid <- aggregate(valid, by=list(valid$id), mean)[,-1]
-	  valid$alpha <- 1 
-	}
 	
-	get.IC.variance(goal=goal, Vdata=valid, R1=train.out$R1, R0=train.out$R0)
+	#=============================================
+	# Variance estimation using treatment-specific means from training set
+	#=============================================
+	
+	get.IC.variance(goal=goal, target=target, Vdata=valid, R1=train.out$R1, R0=train.out$R0)
 	
 }
-
-
-
-
-
